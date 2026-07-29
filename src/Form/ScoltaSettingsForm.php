@@ -457,6 +457,25 @@ class ScoltaSettingsForm extends ConfigFormBase {
       '#description' => $this->t('How scolta:build creates the search index. Auto uses the PHP indexer, which works on all hosting environments and supports fast incremental re-indexing. Can be overridden with --indexer on the CLI.'),
     ];
 
+    // A consumer site renders the search UI only: the index it searches is
+    // built and served by another site, so there is nothing on this filesystem
+    // to locate, and the AI endpoints answer on the origin that owns the index
+    // — that is where the prompts, provider credentials and rate limits live.
+    // Both empty is a normal single-site install.
+    $form['content']['remote_index_url'] = [
+      '#type' => 'url',
+      '#title' => $this->t('Remote index origin'),
+      '#default_value' => $config->get('remote_index_url') ?? '',
+      '#description' => $this->t('Absolute URL of the directory holding the Pagefind bundle on the site that builds it, for example <code>https://search.example.org/sites/default/files/scolta-pagefind</code>. Leave empty to search the index this site builds. The serving site has to send CORS headers allowing this origin, and its web server — not Drupal — is what serves those files.'),
+    ];
+
+    $form['content']['remote_ai_url'] = [
+      '#type' => 'url',
+      '#title' => $this->t('Remote AI origin'),
+      '#default_value' => $config->get('remote_ai_url') ?? '',
+      '#description' => $this->t('Scheme and host answering the AI endpoints, for example <code>https://search.example.org</code>. Usually the same origin as the remote index. Leave empty to answer them on this site.'),
+    ];
+
     $memoryBudgetConfig = MemoryBudgetConfig::load([
       'profile'      => $config->get('memory_budget.profile') ?? 'conservative',
       'custom_bytes' => $config->get('memory_budget.custom_bytes'),
@@ -1485,6 +1504,10 @@ class ScoltaSettingsForm extends ConfigFormBase {
       ->set('field_mappings.sortable', $this->parseKeyValueLines($form_state->getValue('field_mapping_sortable') ?? ''))
       ->set('field_mappings.filters', $this->parseKeyValueLines($form_state->getValue('field_mapping_filters') ?? ''))
       ->set('indexer', $form_state->getValue('indexer'))
+      // Normalised on write so every reader can concatenate without guessing
+      // whether a trailing slash is present.
+      ->set('remote_index_url', rtrim(trim($form_state->getValue('remote_index_url') ?? ''), '/'))
+      ->set('remote_ai_url', rtrim(trim($form_state->getValue('remote_ai_url') ?? ''), '/'))
       ->set('memory_budget.profile', $form_state->getValue('memory_budget_profile') ?? 'conservative')
       ->set('memory_budget.custom_bytes', NULL)
       ->set('memory_budget.chunk_size', ($form_state->getValue('chunk_size') !== '' && $form_state->getValue('chunk_size') !== NULL) ? (int) $form_state->getValue('chunk_size') : NULL)

@@ -351,6 +351,32 @@ The three features are `AiAccessInterface::FEATURE_EXPAND`, `FEATURE_SUMMARIZE` 
 
 Visit *Administration > Configuration > Search and Metadata > Scolta AI Search* to configure the AI provider, API key, model, and indexing options.
 
+#### Searching an index another site owns
+
+A site can render the search UI without building or serving the index itself. Two `scolta.settings` keys, both empty by default and both on the settings form, point it at the site that does:
+
+| key | value |
+|---|---|
+| `remote_index_url` | absolute URL of the directory holding the Pagefind bundle on the serving site, e.g. `https://search.example.org/sites/default/files/scolta-pagefind` |
+| `remote_ai_url` | scheme and host answering the AI endpoints, e.g. `https://search.example.org` |
+
+Set `remote_index_url` and the block stops looking for a local index — there is nothing on this filesystem to find — and points the browser at that URL instead. Set `remote_ai_url` and the three AI endpoint paths are prefixed with it, so `/api/scolta/v1/summarize` is requested from the owning origin rather than this one.
+
+They are normally the same origin, because the prompts, the provider credentials, the response cache and the flood limits all live with the site that owns the index. A consumer site needs no AI provider configured and no API key.
+
+Three things to get right on the serving side:
+
+- **CORS.** The browser fetches `pagefind.js`, the entry JSON and every index chunk cross-origin, and posts JSON to the AI endpoints. The index files are served by the web server, not Drupal, so `cors.config` does not cover them — they need an `Access-Control-Allow-Origin` header from the web server or an `.htaccess`. The AI routes do go through Drupal, and their preflight needs `Content-Type` in `allowedHeaders`.
+- **The AI permission on the consumer.** The search block only offers AI to a visitor holding **Use Scolta AI features**, which is granted to authenticated users at install and *not* to anonymous. On a public search page the anonymous role needs it explicitly, or the UI silently arrives with AI switched off while the endpoints and index path look correct. The serving origin enforces its own permission independently.
+- **The bundle stays local.** Only the index and the AI endpoints are remote. The consumer serves its own `scolta.js` and WASM out of `public://scolta-assets`, so it still installs `tag1/scolta-php` and still needs a cache rebuild to pick up a bundle change.
+
+Set them per environment from `settings.php` when the pairing differs between environments, which config overrides make straightforward:
+
+```php
+$config['scolta.settings']['remote_index_url'] = 'https://search.example.org/sites/default/files/scolta-pagefind';
+$config['scolta.settings']['remote_ai_url'] = 'https://search.example.org';
+```
+
 #### AI endpoint rate limiting
 
 The AI API endpoints (`/api/scolta/v1/expand-query`, `/api/scolta/v1/summarize`, `/api/scolta/v1/followup`) make cost-bearing LLM calls. They require the **Use Scolta AI features** permission, which is granted to authenticated users at install; flood limits apply to every caller regardless. The **Rate Limiting** section of the settings form configures per-IP and site-wide flood thresholds (defaults: 60 requests/minute per IP, 1000 requests/minute site-wide); requests beyond a threshold are rejected with HTTP 429 before any AI work happens. Set a limit to 0 to disable that layer.

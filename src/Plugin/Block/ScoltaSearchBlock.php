@@ -87,6 +87,12 @@ class ScoltaSearchBlock extends BlockBase implements ContainerFactoryPluginInter
     $drupalConfig = $this->configFactory->get('scolta.settings');
     $outputDir = $drupalConfig->get('pagefind.output_dir') ?? 'public://scolta-pagefind';
 
+    // A consumer site runs the frontend only: the index it searches was built
+    // and is served by another site, so there is nothing on this filesystem to
+    // locate and the AI endpoints answer on the origin that owns the index.
+    $remoteIndexUrl = rtrim((string) ($drupalConfig->get('remote_index_url') ?? ''), '/');
+    $remoteAiUrl = rtrim((string) ($drupalConfig->get('remote_ai_url') ?? ''), '/');
+
     // Check if index exists on the filesystem.
     $resolvedDir = $outputDir;
     if (str_contains($outputDir, '://')) {
@@ -98,7 +104,7 @@ class ScoltaSearchBlock extends BlockBase implements ContainerFactoryPluginInter
         // Fall through with unresolved URI.
       }
     }
-    $indexExists = $this->indexLocator->exists($resolvedDir);
+    $indexExists = $remoteIndexUrl !== '' || $this->indexLocator->exists($resolvedDir);
 
     if (!$indexExists) {
       // Output differs by the 'administer scolta' permission, so the render
@@ -123,7 +129,9 @@ class ScoltaSearchBlock extends BlockBase implements ContainerFactoryPluginInter
 
     $config = $this->aiService->getConfig();
 
-    $pagefindPath = $this->resolvePagefindUrl($outputDir);
+    $pagefindPath = $remoteIndexUrl !== ''
+      ? $remoteIndexUrl
+      : $this->resolvePagefindUrl($outputDir);
 
     // Build the window.scolta configuration for the JS frontend.
     // Resolve the WASM glue JS for client-side scoring. AssetDeployer copies
@@ -152,9 +160,9 @@ class ScoltaSearchBlock extends BlockBase implements ContainerFactoryPluginInter
     $scoltaSettings = [
       'scoring' => $scoring,
       'endpoints' => [
-        'expand' => Url::fromRoute('scolta.expand')->toString(),
-        'summarize' => Url::fromRoute('scolta.summarize')->toString(),
-        'followup' => Url::fromRoute('scolta.followup')->toString(),
+        'expand' => $remoteAiUrl . Url::fromRoute('scolta.expand')->toString(),
+        'summarize' => $remoteAiUrl . Url::fromRoute('scolta.summarize')->toString(),
+        'followup' => $remoteAiUrl . Url::fromRoute('scolta.followup')->toString(),
       ],
       'pagefindPath' => $pagefindPath . '/pagefind/pagefind.js',
       'wasmPath' => $wasmPath,

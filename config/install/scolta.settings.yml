@@ -5,6 +5,8 @@ ai_expansion_model: ''
 amazee_model: ''
 amazee_expansion_model: ''
 ai_base_url: ''
+remote_index_url: ''
+remote_ai_url: ''
 ai_expand_query: true
 ai_summarize: true
 ai_languages:
