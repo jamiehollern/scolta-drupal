@@ -17,6 +17,12 @@ scolta.settings:
     ai_base_url:
       type: string
       label: 'AI base URL'
+    remote_index_url:
+      type: string
+      label: 'Remote index origin'
+    remote_ai_url:
+      type: string
+      label: 'Remote AI origin'
     ai_expand_query:
       type: boolean
       label: 'Enable AI query expansion'
