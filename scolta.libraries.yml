@@ -1,5 +1,9 @@
+# version: VERSION resolves to the Drupal core version, so the ?v= query string
+# on these assets does not change when the module ships new JS and browsers keep
+# serving the old bundle from cache. Pinning the module's own version means an
+# update busts the cache.
 search:
-  version: VERSION
+  version: 1.1.0-dev
   js:
     # Shared JS from scolta-php. For development, symlink:
     #   ln -sf ../../scolta-php/assets/js/scolta.js js/scolta.js
@@ -9,7 +13,7 @@ search:
       css/scolta.css: {}
 
 drupal_bridge:
-  version: VERSION
+  version: 1.1.0-dev
   js:
     js/scolta-drupal-bridge.js: {}
   dependencies:
