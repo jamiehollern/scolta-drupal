@@ -9,6 +9,7 @@ use Tag1\Scolta\Binary\PagefindBinary;
 use Composer\InstalledVersions;
 use Drupal\Core\Site\Settings;
 use Tag1\Scolta\AiProvider\Amazee\AutoProvisioner;
+use Drupal\Core\File\Exception\FileException;
 use Drupal\Core\File\FileExists;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
@@ -121,11 +122,30 @@ function _scolta_deploy_assets(): void {
       \Drupal::logger('scolta')->warning('Missing scolta-php asset: @path', ['@path' => $srcPath]);
       continue;
     }
-    $destDir = dirname($destPath);
-    if (!is_dir($destDir)) {
-      $fileSystem->mkdir($destDir, 0755, TRUE);
+    // The module ships these assets committed, so a build where they are
+    // already current has nothing to do. Checking before touching the
+    // filesystem is what makes this safe on hosting that deploys the code tree
+    // read-only — Acquia, Platform.sh, any container image — where the copy
+    // otherwise throws and takes the whole module install down with it.
+    if (is_file($destPath) && @md5_file($destPath) === @md5_file($srcPath)) {
+      continue;
     }
-    $fileSystem->copy($srcPath, $destPath, FileExists::Replace);
+
+    $destDir = dirname($destPath);
+    try {
+      if (!is_dir($destDir)) {
+        $fileSystem->mkdir($destDir, 0755, TRUE);
+      }
+      $fileSystem->copy($srcPath, $destPath, FileExists::Replace);
+    }
+    catch (FileException $e) {
+      // A stale shipped asset is a degraded frontend; an exception here is a
+      // failed deploy. Warn and carry on — re-vendoring belongs in the build.
+      \Drupal::logger('scolta')->warning('Could not deploy asset @asset into the module directory (@message). The copy shipped with the module is being used instead; re-vendor the assets in your build if it is stale.', [
+        '@asset' => $dest,
+        '@message' => $e->getMessage(),
+      ]);
+    }
   }
 }
 
