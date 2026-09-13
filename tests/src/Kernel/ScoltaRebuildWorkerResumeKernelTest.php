@@ -38,7 +38,7 @@ class ScoltaRebuildWorkerResumeKernelTest extends KernelTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
-    'system', 'user', 'scolta', 'search_api', 'node', 'filter', 'field', 'text', 'dblog',
+    'system', 'user', 'scolta', 'node', 'filter', 'field', 'text', 'dblog',
   ];
 
   /**
@@ -215,7 +215,6 @@ class ScoltaRebuildWorkerResumeKernelTest extends KernelTestBase {
       $definition,
       $c->get('lock'),
       $c->get('config.factory'),
-      $c->get('entity_type.manager'),
       $c->get('state'),
       $c->get('cache_tags.invalidator'),
       $c->get('logger.channel.scolta'),
@@ -245,11 +244,11 @@ class ScoltaRebuildWorkerResumeKernelTest extends KernelTestBase {
       /**
        * {@inheritdoc}
        */
-      protected function runSegment(IndexBuildOrchestrator $orchestrator, BuildIntent $intent, array $entityTypes, array $cursors, string $outputDir): StatusReport {
+      protected function runSegment(IndexBuildOrchestrator $orchestrator, BuildIntent $intent, array $entityTypes, array $cursors): StatusReport {
         if ($this->killed) {
           throw new \RuntimeException('killed');
         }
-        return parent::runSegment($orchestrator, $intent, $entityTypes, $cursors, $outputDir);
+        return parent::runSegment($orchestrator, $intent, $entityTypes, $cursors);
       }
 
       /**

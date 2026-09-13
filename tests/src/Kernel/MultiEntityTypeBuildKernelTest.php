@@ -32,7 +32,7 @@ class MultiEntityTypeBuildKernelTest extends KernelTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
-    'system', 'user', 'scolta', 'search_api', 'node', 'taxonomy', 'filter', 'field', 'text', 'dblog',
+    'system', 'user', 'scolta', 'node', 'taxonomy', 'filter', 'field', 'text', 'dblog',
   ];
 
   /**
@@ -183,9 +183,7 @@ class MultiEntityTypeBuildKernelTest extends KernelTestBase {
    */
   protected function runBuild(): void {
     $commands = new ScoltaCommands(
-      $this->container->get('entity_type.manager'),
       $this->container->get('config.factory'),
-      $this->container->get('http_client'),
       $this->container->get('state'),
       $this->container->get('cache.default'),
       $this->container->get('scolta.ai_service'),
@@ -203,9 +201,6 @@ class MultiEntityTypeBuildKernelTest extends KernelTestBase {
       'entity-type' => '',
       'bundle' => '',
       'entity-ids' => '',
-      'output-dir' => $this->indexRoot . '/export',
-      'skip-pagefind' => FALSE,
-      'indexer' => 'php',
       'force' => FALSE,
       'memory-budget' => NULL,
       'chunk-size' => NULL,

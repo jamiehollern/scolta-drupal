@@ -34,7 +34,7 @@ class ResumeChainKernelTest extends KernelTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
-    'system', 'user', 'scolta', 'search_api', 'node', 'filter', 'field', 'text', 'dblog',
+    'system', 'user', 'scolta', 'node', 'filter', 'field', 'text', 'dblog',
   ];
 
   /**
@@ -119,9 +119,7 @@ class ResumeChainKernelTest extends KernelTestBase {
   protected function runYieldingBuild(bool $resume): string {
     $test = $this;
     $commands = new class(
-      $this->container->get('entity_type.manager'),
       $this->container->get('config.factory'),
-      $this->container->get('http_client'),
       $this->container->get('state'),
       $this->container->get('cache.default'),
       $this->container->get('scolta.ai_service'),
@@ -166,9 +164,6 @@ class ResumeChainKernelTest extends KernelTestBase {
         'entity-type' => 'node',
         'bundle' => '',
         'entity-ids' => '',
-        'output-dir' => $this->indexRoot . '/export',
-        'skip-pagefind' => FALSE,
-        'indexer' => 'php',
         'force' => FALSE,
         'memory-budget' => NULL,
         'chunk-size' => 2,
@@ -190,7 +185,6 @@ class ResumeChainKernelTest extends KernelTestBase {
     $this->assertSame('segment captured', $this->runYieldingBuild(resume: FALSE), 'A fresh build that yields chains.');
     $this->assertSame('segment captured', $this->runYieldingBuild(resume: TRUE), 'An operator --resume that yields chains too.');
     $this->assertSame([ResumeChainRunner::SEGMENT_ENV => '1'], $this->spawnedEnv);
-    $this->assertSame('php', $this->spawned['indexer']);
     $this->assertTrue($this->spawned['resume']);
     $this->assertSame('node', $this->spawned['entity-type'], 'The scope is repeated on every segment');
   }

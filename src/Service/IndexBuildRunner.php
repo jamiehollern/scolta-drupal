@@ -155,8 +155,6 @@ class IndexBuildRunner {
    *
    * @param \Tag1\Scolta\Index\IndexBuildOrchestrator $orchestrator
    *   The orchestrator for the state and output directories.
-   * @param string $outputDir
-   *   The resolved index output directory the exporter writes under.
    * @param \Tag1\Scolta\Index\BuildIntent $intent
    *   Fresh, restart or resume.
    * @param string[] $entityTypes
@@ -174,10 +172,10 @@ class IndexBuildRunner {
    * @param bool $force
    *   Reload every entity, trusting nothing cached.
    */
-  public function runSegment(IndexBuildOrchestrator $orchestrator, string $outputDir, BuildIntent $intent, array $entityTypes, array $cursors, LoggerInterface $logger, ProgressReporterInterface $reporter, string $bundle = '', ?array $entityIds = NULL, bool $force = FALSE): StatusReport {
+  public function runSegment(IndexBuildOrchestrator $orchestrator, BuildIntent $intent, array $entityTypes, array $cursors, LoggerInterface $logger, ProgressReporterInterface $reporter, string $bundle = '', ?array $entityIds = NULL, bool $force = FALSE): StatusReport {
     $siteName = $this->siteName();
     $tsManifest = $orchestrator->getTimestampManifest();
-    $exporter = new ContentExporter($outputDir);
+    $exporter = new ContentExporter();
 
     if ($entityIds !== NULL) {
       // Same inclusive resume boundary as the corpus walk: gatherByIds() has
@@ -227,7 +225,7 @@ class IndexBuildRunner {
    * Carry a memory-yielded build to its end, one fresh process per segment.
    *
    * A second segment in the heap the first one fragmented is judged a stall,
-   * so each segment is a child `drush scolta:build --indexer=php --resume`.
+   * so each segment is a child `drush scolta:build --resume`.
    * The loop itself is scolta-php's ResumeChainRunner; this supplies the
    * options and hands each segment to the runner the caller passes in.
    *
@@ -250,7 +248,6 @@ class IndexBuildRunner {
    */
   public function resumeChain(BuildState $state, StatusReport $yielded, MemoryBudget $budget, LoggerInterface $logger, callable $runChild, array $extraOptions = []): StatusReport {
     $options = $extraOptions + [
-      'indexer' => 'php',
       'resume' => TRUE,
       'memory-budget' => round($budget->totalBudgetBytes() / 1_048_576) . 'M',
     ];
