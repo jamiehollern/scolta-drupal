@@ -81,7 +81,7 @@ button rebuilds it from the browser.
 | `drush scolta:clear-cache` (`scc`) | Clear expansion and summary caches |
 | `drush scolta:check-setup` (`scs`) | Verify dependencies and configuration |
 | `drush scolta:status` (`sst`) | Show current index, in-progress build, indexer, and AI provider status; YAML by default, `--format=json` for machines |
-| `drush scolta:reindex <entity-type> [<bundle>]` (`sri`) | Queue entities for reindexing without re-saving them, for when an alter hook or field mapping changed but the content did not. `--ids=12,34` for specific entities. Refused above `incremental.max_changed_items`; use `drush scolta:build --force` for a whole corpus |
+| `drush scolta:reindex <entity-type> [<bundle>]` (`sri`) | Queue entities for reindexing without re-saving them, for when an alter hook or field mapping changed but the content did not. `--ids=12,34` for specific entities. Refused above `incremental.max_changed_items`; use `drush scolta:build --force` for a whole corpus, or `scolta_queue_full_rebuild(__FUNCTION__, TRUE)` from an update hook |
 | `drush scolta:inspect node 123` (`sin`) | Show what the index holds for an entity: the URL, indexed text, filters and metadata of its fragment, and of its translations |
 
 Reindexing is also available to code: `\Drupal::service('scolta.reindexer')->queue('node', $nids)`
@@ -450,6 +450,7 @@ What sits in the queue, and what the worker does with it:
 |---|---|---|
 | `{type: install}` | module install | Untargeted; forces a full build |
 | `{type: <update hook>}` | `scolta_reset_index_state()` from an update hook | Untargeted; full build |
+| `{type: <update hook>}` | `scolta_queue_full_rebuild()` from an update hook; with `$force` it also deletes the timestamp manifest | Untargeted; full build, regathering every entity when forced |
 | `{type: request-build}` | `drush scolta:request-build` | Untargeted; full build |
 | `{type: auto, op, entity_type, entity_id, item_ids}` | entity insert, update and delete hooks | Targeted; applied incrementally to the published index |
 | `{type: reindex, op: update, entity_type, entity_id, item_ids, force: TRUE}` | `drush scolta:reindex` | Targeted; applied incrementally, and rewrites the timestamp manifest so the next full build does not serve the cached page it replaced |
