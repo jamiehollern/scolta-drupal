@@ -39,6 +39,14 @@ class HealthController extends ControllerBase {
   const REASON_INDEX_INTEGRITY_INVALID = 'index_integrity_invalid';
 
   /**
+   * Fault key: the remote index origin did not serve its entry file.
+   *
+   * @since 2.0.0
+   * @stability experimental
+   */
+  const REASON_REMOTE_INDEX_UNREACHABLE = 'remote_index_unreachable';
+
+  /**
    * The AI service.
    *
    * @var \Drupal\scolta_ui\Service\ScoltaAiService
@@ -136,12 +144,13 @@ class HealthController extends ControllerBase {
     // renders on every page and must not pay for it, a monitor polling
     // health can.
     if ($this->indexOrigin->isRemote()) {
+      $result = self::withoutLocalIndexFaults($result);
       $result['index_origin'] = $this->indexOrigin->remoteBase();
       $reachable = $this->remoteIndexReachable($this->indexOrigin->remoteBase());
       $result['index_exists'] = $reachable;
       $result['index'] = ['built' => $reachable, 'remote' => TRUE];
       if (!$reachable) {
-        $result['status'] = 'degraded';
+        $result = self::degradeFor($result, self::REASON_REMOTE_INDEX_UNREACHABLE);
       }
       return $this->respond($result);
     }
@@ -248,6 +257,46 @@ class HealthController extends ControllerBase {
 
     if (($result['status'] ?? NULL) === 'ok') {
       $result['status'] = 'degraded';
+    }
+
+    return $result;
+  }
+
+  /**
+   * Strip the faults HealthChecker found in a local index directory.
+   *
+   * HealthChecker only knows the local output directory, so on a site whose
+   * index is served from elsewhere it finds no index there and reports
+   * `index_missing` (and would report stale artifact URLs from whatever a
+   * past local build left behind). Neither describes the index this site
+   * searches. Both are removed, and the status is recomputed from the
+   * reasons that remain, before the remote index is checked in their place.
+   * Against a scolta-php that reports no `status_reasons`, the status is
+   * left as the checker set it apart from the index fault it cannot name.
+   *
+   * @param array<string, mixed> $result
+   *   Payload from HealthChecker::check().
+   *
+   * @return array<string, mixed>
+   *   The payload with local-index faults removed.
+   *
+   * @since 2.0.0
+   * @stability experimental
+   */
+  public static function withoutLocalIndexFaults(array $result): array {
+    $result['stale_artifact_urls'] = FALSE;
+    $result['stale_artifact_message'] = NULL;
+
+    if (!array_key_exists('status_reasons', $result) || !is_array($result['status_reasons'])) {
+      return $result;
+    }
+
+    $result['status_reasons'] = array_values(array_diff(
+      $result['status_reasons'],
+      ['index_missing', 'index_stale_artifact_urls'],
+    ));
+    if ($result['status_reasons'] === [] && ($result['status'] ?? NULL) === 'degraded') {
+      $result['status'] = 'ok';
     }
 
     return $result;
