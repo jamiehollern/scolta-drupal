@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\scolta\Tests;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -27,8 +26,9 @@ class ModuleBoundaryTest extends TestCase {
    * install dismissing the rebuild notice returned a 500.
    *
    * Core's own routes are exempt: those exist wherever Drupal does.
+   *
+   * @dataProvider moduleSourceProvider
    */
-  #[DataProvider('moduleSourceProvider')]
   public function testAModuleNamesOnlyItsOwnRoutes(string $module, array $files, array $ownRoutes): void {
     foreach ($files as $relative => $source) {
       preg_match_all("/fromRoute\(\s*'([a-z0-9_.]+)'/i", $source, $matches);
