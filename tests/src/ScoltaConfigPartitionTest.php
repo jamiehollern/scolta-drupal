@@ -229,8 +229,9 @@ class ScoltaConfigPartitionTest extends TestCase {
    *   The source file expected to make the read.
    * @param string $key
    *   The config key it must read out of scolta.settings.
+   *
+   * @dataProvider crossObjectReadProvider
    */
-  #[\PHPUnit\Framework\Attributes\DataProvider('crossObjectReadProvider')]
   public function testTheDeliberateCrossObjectReadsAreStillMade(string $file, string $key): void {
     $source = file_get_contents(PackageManifest::root() . '/' . $file);
     $this->assertNotFalse($source, "{$file} must exist");
