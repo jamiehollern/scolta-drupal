@@ -123,7 +123,10 @@ Three things are required of the index host, all standard CDN configuration:
 
 `GET /api/scolta/v1/health` reports whether a remote origin is actually serving
 an index: it fetches the entry file rather than the directory, so a host that
-answers 200 for a directory it serves no index from still fails the check.
+answers 200 for a directory it serves no index from still fails the check. The
+result is reused for a minute. It cannot see the CORS headers or the `.wasm`
+content type, since those only matter to a browser; check the browser console
+on a search page for those.
 
 **AI origin** works the same way and is independent: `<local>` answers query
 expansion, summaries and follow-ups from this site using the AI configuration

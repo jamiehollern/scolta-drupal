@@ -125,7 +125,7 @@ class ScoltaSettingsForm extends ConfigFormBase {
       '#type' => 'textfield',
       '#title' => $this->t('Index origin'),
       '#default_value' => $config->get('index_origin') ?: IndexOrigin::LOCAL,
-      '#description' => $this->t('%local searches the index this site builds with the Scolta module. To search an index another site serves, enter the base URL its Pagefind directory sits under, for example <code>https://search.example.com</code>. That host must send CORS headers for this site and serve <code>.wasm</code> as <code>application/wasm</code>; <code>/api/scolta/v1/health</code> reports whether it does.', ['%local' => IndexOrigin::LOCAL]),
+      '#description' => $this->t('%local searches the index this site builds with the Scolta module. To search an index another site serves, enter the base URL its Pagefind directory sits under, for example <code>https://search.example.com</code>. That host must send CORS headers for this site and serve <code>.wasm</code> as <code>application/wasm</code>.', ['%local' => IndexOrigin::LOCAL]),
     ];
 
     $form['origins']['ai_origin'] = [
