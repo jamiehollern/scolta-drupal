@@ -73,7 +73,7 @@ services:
   # Resolves where the index is: this site's build output, or another site.
   scolta_ui.index_origin:
     class: Drupal\scolta_ui\Service\IndexOrigin
-    arguments: ['@config.factory', '@stream_wrapper_manager']
+    arguments: ['@config.factory', '@stream_wrapper_manager', '@http_client', '@cache.default']
   Drupal\scolta_ui\Service\IndexOrigin: '@scolta_ui.index_origin'
 
   # Resolves where AI requests go: this site's endpoints, or another site's.

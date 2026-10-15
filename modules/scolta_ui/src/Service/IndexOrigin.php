@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Drupal\scolta_ui\Service;
 
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\StreamWrapper\StreamWrapperManagerInterface;
+use Drupal\scolta_ui\Cache\DrupalCacheDriver;
+use GuzzleHttp\ClientInterface;
+use Tag1\Scolta\Index\IndexLocatorInterface;
+use Tag1\Scolta\Index\LocalIndexLocator;
+use Tag1\Scolta\Index\RemoteIndexLocator;
 
 /**
  * Where the index this site searches actually lives.
@@ -36,9 +42,23 @@ class IndexOrigin {
    */
   private const DEFAULT_OUTPUT_DIR = 'public://scolta-pagefind';
 
+  /**
+   * Constructs an IndexOrigin.
+   *
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
+   *   The config factory.
+   * @param \Drupal\Core\StreamWrapper\StreamWrapperManagerInterface $streamWrapperManager
+   *   Resolves the local output directory's stream wrapper.
+   * @param \GuzzleHttp\ClientInterface|null $httpClient
+   *   Checks a remote origin. Only locator() needs it.
+   * @param \Drupal\Core\Cache\CacheBackendInterface|null $cache
+   *   Where a remote origin's answer is reused from. Only locator() needs it.
+   */
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
     private readonly StreamWrapperManagerInterface $streamWrapperManager,
+    private readonly ?ClientInterface $httpClient = NULL,
+    private readonly ?CacheBackendInterface $cache = NULL,
   ) {}
 
   /**
@@ -61,6 +81,34 @@ class IndexOrigin {
    */
   public function remoteBase(): ?string {
     return $this->isRemote() ? $this->origin() : NULL;
+  }
+
+  /**
+   * The scolta-php locator for the configured origin.
+   *
+   * For health reporting: scolta-php's HealthChecker asks it whether the
+   * index is being served, by a file check for <local> and by fetching the
+   * remote entry file for a URL. The remote answer is reused for
+   * RemoteIndexLocator::DEFAULT_TTL seconds, because /health is anonymous.
+   * Never ask it on a page-render path; exists() below is for that.
+   *
+   * @throws \LogicException
+   *   When the origin is remote and this service was built without an HTTP
+   *   client or a cache. The cache is not optional for a remote origin:
+   *   without it every anonymous /health request makes more to that host.
+   */
+  public function locator(): IndexLocatorInterface {
+    if (!$this->isRemote()) {
+      return new LocalIndexLocator($this->resolvedOutputDir());
+    }
+    if ($this->httpClient === NULL || $this->cache === NULL) {
+      throw new \LogicException('IndexOrigin needs an HTTP client and a cache to locate a remote index.');
+    }
+    return new RemoteIndexLocator(
+      $this->origin(),
+      $this->httpClient,
+      new DrupalCacheDriver($this->cache),
+    );
   }
 
   /**
