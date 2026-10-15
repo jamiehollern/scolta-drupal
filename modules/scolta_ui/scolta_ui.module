@@ -13,7 +13,17 @@ declare(strict_types=1);
 
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Url;
+use Drupal\scolta_ui\Event\PromptEnrichEvent;
 use Drupal\scolta_ui\Service\AssetDeployer;
+
+// PromptEnrichEvent moved here from scolta in the split, and it is the one
+// moved class other modules are meant to build on. The alias keeps their type
+// hints and `use` statements resolving; EventDrivenEnricher::LEGACY_EVENT_NAME
+// keeps their subscriptions firing, which an alias alone cannot.
+// @todo Remove in scolta:3.0.0.
+if (!class_exists('Drupal\\scolta\\Event\\PromptEnrichEvent', FALSE)) {
+  class_alias(PromptEnrichEvent::class, 'Drupal\\scolta\\Event\\PromptEnrichEvent');
+}
 
 /**
  * Implements hook_help().

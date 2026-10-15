@@ -38,8 +38,11 @@ lets one site build an index that other, thin sites consume.
    `ScoltaSearchBlock`, `ScoltaSettingsForm`, `AmazeeSettingsForm`,
    `ScoltaAiService`, `AssetDeployer`, the AI controllers, `PromptEnrichEvent`
    and the `Drupal\scolta\Access` classes are all `Drupal\scolta_ui\...` now.
-   A prompt-enricher module subscribing to `PromptEnrichEvent` must update its
-   `use` statement, and should declare `scolta:scolta_ui` as its dependency.
+   A prompt-enricher module subscribing to `PromptEnrichEvent` should update
+   its `use` statement and declare `scolta:scolta_ui` as its dependency. Until
+   it does, it keeps working: the old name is an alias and the event is still
+   dispatched under it, with a deprecation notice, until 3.0.0. Old-name
+   subscribers run after every current one, whatever priority they ask for.
    **Service IDs and route names did not change** — `scolta.ai_service`,
    `scolta.ai_access` and the `scolta.settings` route all keep their names, so
    a decorator or a `Url::fromRoute()` call needs no edit.
