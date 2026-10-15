@@ -660,7 +660,8 @@ function _scolta_empty_directory(string $uri): bool {
  * objects, and sees no functional difference: both origin pointers default to
  * <local>, so it goes on building its own index and answering its own AI.
  *
- * Three things happen, in this order, because each depends on the last.
+ * Four things happen, in this order. Each of the first three depends on the
+ * last, and the fourth needs scolta_ui enabled.
  *
  * 1. scolta_ui is enabled. Without it the site loses search outright — the
  *    block, the libraries, the AI endpoints and the settings form all moved
@@ -688,9 +689,13 @@ function _scolta_empty_directory(string $uri): bool {
  *    non-admin role would otherwise find that role locked out of the screen it
  *    has always used.
  *
+ * 4. Every placed search block names scolta_ui as its provider, so it depends
+ *    on scolta_ui and survives a frontend-only site uninstalling scolta.
+ *
  * Idempotent throughout. Re-running enables nothing (the module is installed),
- * moves nothing (the source keys are gone), and grants nothing (the roles hold
- * the permission), so a second run produces config identical to the first.
+ * moves nothing (the source keys are gone), grants nothing (the roles hold
+ * the permission), and resaves no block (each already names scolta_ui), so a
+ * second run produces config identical to the first.
  *
  * scolta_update_10010() is the hook that announces this migration, but it
  * cannot be its only caller. Update hooks run in number order, and four that
@@ -796,6 +801,35 @@ function _scolta_apply_module_split(): array {
     $messages[] = t('Granted the new "administer scolta ui" permission to every role that could already administer Scolta: @roles. It covers the search, scoring, display and AI settings; "administer scolta" now covers the index build alone.', [
       '@roles' => implode(', ', $granted),
     ]);
+  }
+
+  // 4. Hand placed search blocks to scolta_ui. A block stores the module that
+  // provided its plugin in settings.provider and depends on that module, so
+  // every block placed before the split still names scolta. Uninstalling
+  // scolta on a site that only consumes a remote index -- the case the split
+  // exists for -- would then delete the site's search block. Setting the
+  // provider and resaving moves the dependency with it, since saving
+  // recalculates it from the plugin, which scolta_ui now defines.
+  if (\Drupal::moduleHandler()->moduleExists('block')) {
+    $rehomed = [];
+    $blocks = \Drupal::entityTypeManager()->getStorage('block')->loadByProperties(['plugin' => 'scolta_search']);
+    foreach ($blocks as $block) {
+      $settings = $block->get('settings');
+      if (($settings['provider'] ?? NULL) === 'scolta_ui') {
+        continue;
+      }
+      $settings['provider'] = 'scolta_ui';
+      $block->set('settings', $settings);
+      $block->save();
+      $rehomed[] = $block->id();
+    }
+
+    if ($rehomed) {
+      $messages[] = t('Moved @count placed search block(s) to the scolta_ui module, which now provides them: @blocks. Each keeps its region, visibility and settings.', [
+        '@count' => count($rehomed),
+        '@blocks' => implode(', ', $rehomed),
+      ]);
+    }
   }
 
   return $messages;
