@@ -29,6 +29,15 @@ lets one site build an index that other, thin sites consume.
 2. If you manage configuration through exported YAML, run `drush cex` and
    commit both `scolta.settings.yml` and the new `scolta_ui.settings.yml`. The
    moved keys will show as removed from the first and added to the second.
+
+   **Do that before deploying, in one environment.** `drush deploy` runs
+   `config:import` right after `updb`, and a sync directory exported before the
+   split undoes it: importing it uninstalls `scolta_ui` (it is not in that
+   `core.extension.yml`) and puts the moved keys back in `scolta.settings`.
+   The update has already run by then and will not run again, so the site is
+   left with no search block, no AI endpoints and no settings form. Run the
+   update and the export together locally or on one environment, commit the
+   result, and deploy that.
 3. If you set query-time keys with `drush config:set`, in `settings.php`, or
    through a config split, change the object name. `scolta.settings` keeps
    `entity_types`, `body_fields`, `sortable_fields`, `filter_fields`,

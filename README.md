@@ -132,6 +132,45 @@ on a search page for those.
 expansion, summaries and follow-ups from this site using the AI configuration
 on the same screen, and a URL routes those three calls to another site instead.
 
+`GET /api/scolta/v1/health` asks that site's own `/health` and reports what it
+says (`ai_remote.status`), as `remote_ai_unreachable` or `remote_ai_degraded`
+when it is not `ok`. That status covers the other site's whole Scolta install,
+its index included. This site's AI configuration is unused while the origin is
+remote, so its faults are left out of the report.
+
+The site at that URL answers the calls with its own AI configuration, prompts
+and flood limits, and it needs two things set up for it, both on that site:
+
+- **Grant `use scolta ai` to the anonymous role.** `scolta.js` posts to the AI
+  endpoints without credentials, so on the AI origin every visitor from every
+  consuming site is anonymous, whoever they are on the site they are searching
+  from. Without the grant the endpoints answer 403 and the search page shows no
+  AI overview. The flood limits are what bound the cost of opening them.
+- **Allow each consuming origin in Drupal's CORS configuration.** The browser
+  posts JSON cross-origin, so it sends a preflight first, and that has to allow
+  the consumer's origin, the `POST` method and the `content-type` header.
+  `cors.config` is a container parameter, so a `services.yml` that sets it
+  replaces any other definition wholesale rather than merging with it:
+
+  ```yaml
+  parameters:
+    cors.config:
+      enabled: true
+      allowedHeaders: ['content-type']
+      allowedMethods: ['POST']
+      allowedOrigins: ['https://www.example.com']
+      exposedHeaders: false
+      maxAge: false
+      supportsCredentials: false
+  ```
+
+  CORS only binds browsers, so it decides which sites can embed the AI, not who
+  can call it.
+
+The consuming site itself still gates the AI interface on its own
+`use scolta ai` permission, so grant it there to the roles that should see AI
+overviews, even though the requests are answered elsewhere.
+
 ## Drush Commands
 
 | Command | Description |
