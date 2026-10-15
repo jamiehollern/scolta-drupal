@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\scolta\Functional;
 
+use Drupal\block\Entity\Block;
 use Drupal\Tests\BrowserTestBase;
+use Drupal\Tests\UpdatePathTestTrait;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
 
@@ -27,6 +29,10 @@ use Drupal\user\RoleInterface;
  * - Access preserved. A role that could administer Scolta before can still
  *   reach the settings screen afterwards, through the new permission.
  *
+ * Most tests call scolta_update_10010() directly. The ones that check the
+ * hooks before it applying the split first instead set scolta's schema back
+ * and run update.php, so the hooks run in the order a real upgrade runs them.
+ *
  * The fixture is built by writing the pre-split shape back into
  * scolta.settings — a single object holding both halves — which is exactly
  * the state a site updating into this release is in.
@@ -34,6 +40,8 @@ use Drupal\user\RoleInterface;
  * @group scolta
  */
 class ConfigSplitUpdateFunctionalTest extends BrowserTestBase {
+
+  use UpdatePathTestTrait;
 
   /**
    * {@inheritdoc}
@@ -271,29 +279,125 @@ class ConfigSplitUpdateFunctionalTest extends BrowserTestBase {
   }
 
   /**
-   * The AI permission backfill runs on a site that has not split yet.
+   * An upgrade from before 10001 applies the split in 10001, then carries on.
    *
-   * 10001 grants 'use scolta ai', which only scolta_ui defines now, and runs
-   * before 10010 on a site upgrading from before it. Role::save() throws on a
-   * permission no installed module defines, so the hook has to apply the
-   * split itself first.
+   * 10001 grants a permission only scolta_ui defines, and 10002, 10003, 10004
+   * and 10009 write keys only scolta_ui.settings declares, so on this site the
+   * split has to happen at the very start of the run. It is also the case
+   * that put auto_language_filter's typing in the split: 10009 only runs once
+   * the split has already cast the stored string.
    */
-  public function testAiPermissionBackfillAppliesTheSplitFirst(): void {
+  public function testUpgradeFromBefore10001AppliesTheSplitFirst(): void {
     $this->simulatePreSplitSite();
-    foreach ([RoleInterface::ANONYMOUS_ID, RoleInterface::AUTHENTICATED_ID] as $roleId) {
-      $this->assertFalse(Role::load($roleId)->hasPermission('use scolta ai'));
-    }
+    // As a site that set the key before #332 declared it may have stored it.
+    \Drupal::configFactory()->getEditable('scolta.settings')->set('auto_language_filter', 'false')->save();
+    \Drupal::service('update.update_hook_registry')->setInstalledVersion('scolta', 10000);
 
-    $this->runUpdate('scolta_update_10001');
+    $this->runUpdates();
 
     $this->assertTrue(\Drupal::moduleHandler()->moduleExists('scolta_ui'));
-    foreach ([RoleInterface::ANONYMOUS_ID, RoleInterface::AUTHENTICATED_ID] as $roleId) {
-      $this->assertTrue(
-        Role::load($roleId)->hasPermission('use scolta ai'),
-        "10001 must still grant 'use scolta ai' to {$roleId}"
-      );
-    }
+    $this->assertSame(10010, \Drupal::service('update.update_hook_registry')->getInstalledVersion('scolta'));
     $this->assertSame('Fixture Site', $this->config('scolta_ui.settings')->get('site_name'));
+    $this->assertNull($this->config('scolta.settings')->get('site_name'));
+    $this->assertFalse(
+      $this->config('scolta_ui.settings')->get('auto_language_filter'),
+      'The string "false" must arrive in scolta_ui.settings as a real FALSE'
+    );
+    // 10001 grants the AI permission to both roles, which needed the split
+    // to have happened; 10004 then takes it back from anonymous on purpose.
+    $this->assertTrue(
+      $this->loadRole(RoleInterface::AUTHENTICATED_ID)->hasPermission('use scolta ai'),
+      "10001 must grant 'use scolta ai' to the authenticated role"
+    );
+    $this->assertFalse(
+      $this->loadRole(RoleInterface::ANONYMOUS_ID)->hasPermission('use scolta ai'),
+      "10004 revokes 'use scolta ai' from anonymous, after 10001 granted it"
+    );
+  }
+
+  /**
+   * A site that revoked the AI grant from logged-in users keeps it revoked.
+   *
+   * Enabling scolta_ui runs scolta_ui_install(), which grants 'use scolta ai'
+   * to the authenticated role, as is right for a fresh install. This site
+   * already decided otherwise, and the AI endpoints cost money per request.
+   */
+  public function testUpgradeKeepsEachRolesAiGrantAsItWas(): void {
+    $this->simulatePreSplitSite();
+    // The roles as a pre-split site stores them: a site role holds the grant,
+    // and authenticated had it revoked. Written as raw config, because
+    // nothing on this codebase defines the permission until scolta_ui is
+    // enabled. Not anonymous: 10004 revokes its grant on purpose.
+    $roleId = $this->drupalCreateRole([], 'researcher');
+    $role = \Drupal::configFactory()->getEditable("user.role.{$roleId}");
+    $role->set('permissions', ['use scolta ai'])->save();
+    $this->assertFalse($this->loadRole(RoleInterface::AUTHENTICATED_ID)->hasPermission('use scolta ai'));
+    // Past 10001, so nothing in the run grants the permission on purpose.
+    \Drupal::service('update.update_hook_registry')->setInstalledVersion('scolta', 10001);
+
+    $this->runUpdates();
+
+    $this->assertTrue(\Drupal::moduleHandler()->moduleExists('scolta_ui'));
+    $this->assertTrue(
+      $this->loadRole($roleId)->hasPermission('use scolta ai'),
+      'A role that held the AI grant before the split must still hold it'
+    );
+    $this->assertFalse(
+      $this->loadRole(RoleInterface::AUTHENTICATED_ID)->hasPermission('use scolta ai'),
+      'Enabling scolta_ui must not hand logged-in users an AI grant this site revoked'
+    );
+  }
+
+  /**
+   * A search block placed before the split survives uninstalling scolta.
+   *
+   * A block depends on the module named in its settings.provider. Left
+   * naming scolta, uninstalling scolta on a frontend-only site -- the case
+   * the split exists for -- deletes the site's search block with it.
+   */
+  public function testPlacedSearchBlockSurvivesUninstallingScolta(): void {
+    // Place the block while its plugin exists, then rewrite it to what a
+    // pre-split site stores: provided by scolta, and depending on it.
+    \Drupal::service('module_installer')->install(['scolta_ui']);
+    $this->drupalPlaceBlock('scolta_search', ['id' => 'site_search']);
+    $raw = \Drupal::configFactory()->getEditable('block.block.site_search');
+    $raw->set('settings.provider', 'scolta')
+      ->set('dependencies.module', ['scolta'])
+      ->save();
+    $this->simulatePreSplitSite();
+    $this->assertNotNull($this->loadBlock('site_search'), 'Fixture: uninstalling scolta_ui must not take the pre-split block');
+
+    $this->runSplitUpdate();
+
+    $block = $this->config('block.block.site_search');
+    $this->assertSame('scolta_ui', $block->get('settings.provider'));
+    $this->assertContains('scolta_ui', $block->get('dependencies.module'));
+    $this->assertNotContains('scolta', $block->get('dependencies.module'));
+
+    \Drupal::service('module_installer')->uninstall(['scolta']);
+
+    $this->assertNotNull(
+      $this->loadBlock('site_search'),
+      'Uninstalling scolta must not delete a search block scolta_ui now provides'
+    );
+  }
+
+  /**
+   * Loads a role past the entity cache, which config writes here bypass.
+   */
+  private function loadRole(string $roleId): RoleInterface {
+    $storage = \Drupal::entityTypeManager()->getStorage('user_role');
+    $storage->resetCache([$roleId]);
+    return $storage->load($roleId);
+  }
+
+  /**
+   * Loads a block past the entity cache.
+   */
+  private function loadBlock(string $id): ?Block {
+    $storage = \Drupal::entityTypeManager()->getStorage('block');
+    $storage->resetCache([$id]);
+    return $storage->load($id);
   }
 
   /**
