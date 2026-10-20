@@ -10,23 +10,38 @@ use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
 
 /**
- * The default AI model as of scolta_update_10003.
+ * The default AI model scolta_update_10003 resets a migrated ai_model to.
  *
- * Pinned here rather than read from the settings form. An update hook is a
- * historical record of one migration: it has to keep meaning what it meant
- * when it was written, and the live default can move under it. Since the
- * backend/frontend split it would also be reaching across into scolta_ui,
- * which the backend must not do.
+ * Pinned here rather than read from the settings form, which moved to
+ * scolta_ui with the backend/frontend split, and the backend must not reach
+ * into the frontend. It is the current shipped default, so a site migrated by
+ * 10003 has nothing left for 10010's model bump to do.
  *
  * A function rather than a global constant because Drupal's coding standards
  * forbid one in a module file, and the value has nowhere sensible to live as
  * a class constant: nothing but this one hook may ever read it.
  *
  * @return string
- *   The model name scolta_update_10003 treats as "the shipped default".
+ *   The model name scolta_update_10003 resets ai_model to.
  */
 function _scolta_update_10003_default_ai_model(): string {
-  return 'claude-sonnet-4-5-20250929';
+  return 'claude-sonnet-5-5';
+}
+
+/**
+ * Every ai_model default a release has shipped.
+ *
+ * The update scolta_update_10003 treats any of these as the shipped default
+ * rather than a stranded gateway alias. Checking only the current one would
+ * move a credentialed site still on an older default into amazee_model, where
+ * the gateway does not know it. Upgrading sites reach 10003 before 10010 moves
+ * them off the old default, so that is the case it meets most.
+ *
+ * @return string[]
+ *   Model names.
+ */
+function _scolta_update_10003_shipped_ai_models(): array {
+  return ['claude-sonnet-4-5-20250929', 'claude-sonnet-5-5'];
 }
 
 /**
@@ -326,7 +341,7 @@ function scolta_update_10003() {
   $needsMigration = $hasCredentials
     && ($config->get('amazee_model') ?? '') === ''
     && $strandedModel !== ''
-    && $strandedModel !== _scolta_update_10003_default_ai_model();
+    && !in_array($strandedModel, _scolta_update_10003_shipped_ai_models(), TRUE);
 
   if (!$needsMigration) {
     if ($backfilled) {
@@ -739,16 +754,16 @@ function _scolta_empty_directory(string $uri): bool {
  * scolta_update_10011() is the hook that announces this migration, but it
  * cannot be its only caller. Update hooks run in number order, and five that
  * predate it -- 10002, 10003, 10004, 10009 and 10010 -- write settings this
- * release moved to scolta_ui.settings. A site upgrading from before them runs those
- * hooks first, and by then neither object can take the write: scolta.settings
- * no longer declares schema for the keys, and scolta_ui.settings belongs to a
- * module that is not installed yet, so writing it would leave behind a config
- * object that the later install then declines to seed with its own defaults.
- * A sixth, 10001, grants 'use scolta ai', which only scolta_ui defines now,
- * and Role::save() throws on a permission nothing defines. Each of those hooks
- * therefore applies the split before it touches what the split moved, and
- * idempotence is what makes that safe: whichever hook runs first does the
- * work, and 10011 finds it done.
+ * release moved to scolta_ui.settings. A site upgrading from before them runs
+ * those hooks first, and by then neither object can take the write:
+ * scolta.settings no longer declares schema for the keys, and
+ * scolta_ui.settings belongs to a module that is not installed yet, so writing
+ * it would leave behind a config object that the later install then declines to
+ * seed with its own defaults. A sixth, 10001, grants 'use scolta ai', which
+ * only scolta_ui defines now, and Role::save() throws on a permission nothing
+ * defines. Each of those hooks therefore applies the split before it touches
+ * what the split moved, and idempotence is what makes that safe: whichever hook
+ * runs first does the work, and 10011 finds it done.
  *
  * @return array
  *   Operator-facing messages describing what changed. Empty when the split

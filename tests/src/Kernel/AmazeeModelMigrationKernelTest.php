@@ -109,6 +109,24 @@ class AmazeeModelMigrationKernelTest extends KernelTestBase {
   }
 
   /**
+   * A site still on the previous shipped default is not migrated either.
+   *
+   * Upgrading sites reach 10003 before 10010 moves them off the dated
+   * default, so this is the shipped default 10003 meets most. Read as an
+   * alias, it would land in amazee_model, a name the gateway does not know.
+   */
+  public function testPreviousShippedDefaultIsNotMigrated(): void {
+    $this->storeAmazeeCredentials();
+    $this->simulatePreFixSite('claude-sonnet-4-5-20250929', '');
+
+    $this->runMigration();
+    $config = $this->config('scolta_ui.settings');
+
+    $this->assertSame('claude-sonnet-4-5-20250929', $config->get('ai_model'), 'Left for 10010 to move to the current default');
+    $this->assertSame('', $config->get('amazee_model'), 'A shipped default is not a gateway alias');
+  }
+
+  /**
    * The shipped default is not an alias, so a credentialed site keeps it.
    */
   public function testShippedDefaultIsNotMigrated(): void {
